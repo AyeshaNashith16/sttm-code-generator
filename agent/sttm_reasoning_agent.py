@@ -1,23 +1,39 @@
 class STTMReasoningAgent:
+    """
+    ✅ FINAL AGENT
+    - Extracts Bronze table name from STTM column ✅
+    - Passes it to generator as source_tables ✅
+    """
 
     def __init__(self, sttm_metadata: dict):
         self.sttm = sttm_metadata
 
     def analyze(self) -> dict:
-        audit_columns = []
-        business_columns = []
-        all_columns = []
 
-        source_tables = set()   # ✅ NEW (correct place)
+        all_columns = []
+        source_tables = set()
 
         for col in self.sttm["columns"]:
 
+            # ✅ TARGET DETAILS
             name = col["target_column"]
             dtype = col["data_type"]
             raw_transform = col.get("transform", "")
 
-            # ✅ Split transform correctly
+            # ✅ SPLIT TRANSFORM
             transform_sql, filter_sql, join_sql = self._split_transform(raw_transform)
+
+            # ✅ ✅ BRONZE TABLE EXTRACTION (THIS IS THE KEY FIX)
+            # Bronze table name is in SECOND COLUMN of STTM
+            # Usually stored as source_table / bronze_table / input_table
+            bronze_tbl = (
+                col.get("bronze_table")
+                or col.get("source_table")
+                or col.get("input_table")
+            )
+
+            if bronze_tbl:
+                source_tables.add(bronze_tbl.strip())
 
             entry = {
                 "name": name,
@@ -29,27 +45,10 @@ class STTMReasoningAgent:
 
             all_columns.append(entry)
 
-            # ✅ Extract source tables HERE (correct place)
-            if raw_transform and "tbl_" in raw_transform:
-                lines = raw_transform.split("\n")
-                for line in lines:
-                    if "tbl_" in line:
-                        source_tables.add(line.strip())
-
-            # ✅ classify columns
-            if name.lower().startswith("xtndf") or name.lower() in (
-                "createdtime", "createdbyid", "updatedtime", "updatedbyid"
-            ):
-                audit_columns.append(entry)
-            else:
-                business_columns.append(entry)
-
         return {
             "target": self.sttm["target"],
-            "audit_columns": audit_columns,
-            "business_columns": business_columns,
             "all_columns": all_columns,
-            "source_tables": list(source_tables)   # ✅ now correct
+            "source_tables": list(source_tables)  # ✅ SENT TO GENERATOR
         }
 
     def _split_transform(self, text):
@@ -77,5 +76,4 @@ class STTMReasoningAgent:
             elif part.startswith("JOIN"):
                 join = part.replace("JOIN", "").strip()
 
-        # ✅ RETURN ONLY THESE
         return transform, filter_, join
