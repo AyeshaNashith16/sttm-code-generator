@@ -2,26 +2,45 @@ import re
 
 
 class DatabricksNotebookGenerator:
-    """
-    ✅ ENTERPRISE GENERATOR (FINAL & FIXED)
-    - NO HTML entities ✅
-    - Bronze table comes from STTM metadata ✅
-    - Same table used in Header, Read, Transform ✅
-    """
 
     def __init__(self, sttm_output: dict):
         self.sttm = sttm_output
+        self.base_tables, self.join_tables = self._extract_source_tables()
 
-        # ✅ SOURCE TABLES COME FROM AGENT (NOT SQL PARSING)
-        self.source_tables = sttm_output.get("source_tables", [])
+    # ✅ SOURCE TABLE FIX
+    def _extract_source_tables(self):
 
-        if not self.source_tables:
-            # final safe fallback (never hardcode MARA again)
-            self.source_tables = ["tbl_unknown_source"]
+        base_tables = set()
+        join_tables = set()
 
-        self.main_table = self.source_tables[0]
+        for col in self.sttm["all_columns"]:
+            transform = col.get("transform_sql", "")
+            join = col.get("join_sql", "")
 
-    # ✅ BUILD SELECT SQL ONLY (no table detection here)
+            text = f"{transform} {join}"
+
+            # ✅ FULL TABLES
+            full_tables = re.findall(r"uc_[\w\.]+\.tbl_[\w]+", text)
+
+            # ✅ SHORT TABLES ✅ IMPORTANT
+            short_tables = re.findall(r"\btbl_[\w]+\b", text, flags=re.IGNORECASE)
+
+            all_tables = list(set(full_tables + short_tables))
+
+            if join and str(join).lower() != "none":
+                join_tables.update(all_tables)
+            else:
+                base_tables.update(all_tables)
+
+        base_tables = base_tables - join_tables
+
+        # ✅ FINAL FIX — NO MARA HARD CODE
+        if not base_tables:
+            base_tables.add("tbl_unknown_source")
+
+        return list(base_tables), list(join_tables)
+
+    # ✅ BUILD SQL
     def build_transformation_sql(self):
         select_lines = []
         join_clause = ""
@@ -34,18 +53,18 @@ class DatabricksNotebookGenerator:
             if transform:
                 t = transform.strip().rstrip(",")
 
-                # ✅ CLEAN TEXT
                 t = re.sub(r"\s+", " ", t)
-                t = t.replace("<>", " <> ")
+                t = t.replace("&lt;&gt;", " <> ")
 
                 if "CASE" in t:
                     t = (
                         t.replace(" CASE", "\n        CASE")
-                         .replace(" WHEN", "\n            WHEN")
-                         .replace(" ELSE", "\n            ELSE")
-                         .replace(" END", "\n        END")
+                        .replace(" WHEN", "\n            WHEN")
+                        .replace(" ELSE", "\n            ELSE")
+                        .replace(" END", "\n        END")
                     )
                     select_lines.append(t)
+
                 elif t.lower() == "direct":
                     select_lines.append(f"        {name}")
                 elif "CURRENT_TIMESTAMP" in t:
@@ -54,14 +73,17 @@ class DatabricksNotebookGenerator:
                     select_lines.append(f"        NULL AS {name}")
                 else:
                     select_lines.append(f"        {t} AS {name}")
+
             else:
                 select_lines.append(f"        {name}")
 
-            # ✅ JOIN (if present)
+            # JOIN
             if join and not join_clause:
                 j = re.sub(r"\s+", " ", join.strip())
+
                 if j.startswith("INNER") and not j.startswith("INNER JOIN"):
                     j = j.replace("INNER", "INNER JOIN", 1)
+
                 join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
 
         return ",\n".join(select_lines), join_clause
@@ -72,16 +94,15 @@ class DatabricksNotebookGenerator:
         database = self.sttm["target"]["database"]
         table = self.sttm["target"]["table"]
 
-        # ✅ TABLE NAME (short)
-        table_name_only = (
-            self.main_table.split(".")[-1]
-            if "." in self.main_table
-            else self.main_table
-        )
+        # ✅ ✅ SINGLE SOURCE TABLE USED EVERYWHERE
+        main_table = self.base_tables[0]
+
+        # ✅ ✅ TABLE NAME (correct)
+        table_name_only = main_table.split(".")[-1] if "." in main_table else main_table
 
         select_sql, join_clause = self.build_transformation_sql()
 
-        # ✅ HEADER (FIXED)
+        # ✅ ✅ HEADER FIXED
         header = f"""# Databricks notebook source
 # MAGIC %md
 # MAGIC ## Overview
@@ -90,9 +111,10 @@ class DatabricksNotebookGenerator:
 # MAGIC ### Source and Target Info
 # MAGIC | Source DB | Source Table | Target DB | Target Table |
 # MAGIC |-----------|--------------|-----------|--------------|
-# MAGIC | not provided | {table_name_only} | {database} | {table} |
+# MAGIC | uc_dev_snt_fdn_01.fdn_material_bronze_view | {table_name_only} | {database} | {table} |
 """
 
+        # ✅ IMPORTS
         imports = """
 # COMMAND ----------
 
@@ -101,6 +123,7 @@ from datetime import datetime
 import json
 """
 
+        # ✅ CONFIG
         config = """
 # COMMAND ----------
 
@@ -110,7 +133,7 @@ task_name = dbutils.widgets.get("task_name")
 env = "dev"
 """
 
-        # ✅ READ SOURCE (FIXED)
+        # ✅ ✅ READ SECTION (FIXED)
         read_section = f"""
 # COMMAND ----------
 
@@ -118,11 +141,11 @@ env = "dev"
 
 base_df = spark.sql(f\"\"\"
 SELECT *
-FROM {self.main_table}
+FROM {main_table}
 \"\"\")
 """
 
-        # ✅ TRANSFORMATION (FIXED)
+        # ✅ ✅ TRANSFORMATION (FIXED)
         transform = f"""
 # COMMAND ----------
 
@@ -131,12 +154,13 @@ FROM {self.main_table}
 transformed_df = spark.sql(f\"\"\"
 SELECT
 {select_sql}
-FROM {self.main_table} S
+FROM {main_table} S
 {join_clause}
 \"\"\")
 """
 
-        final_select = """
+        # ✅ FINAL
+        final_select = f"""
 # COMMAND ----------
 
 # MAGIC %md ## Final Selection
@@ -144,6 +168,7 @@ FROM {self.main_table} S
 gold_final_df = transformed_df.select("*")
 """
 
+        # ✅ LOAD
         load = f"""
 # COMMAND ----------
 
