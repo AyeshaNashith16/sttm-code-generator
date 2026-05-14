@@ -8,22 +8,32 @@ class STTMReasoningAgent:
         business_columns = []
         all_columns = []
 
-        # ✅ SINGLE SOURCE OF TRUTH
         source_tables = set()
 
+        # ✅ ✅ CORRECT: extract Bronze table from column-level metadata
         for col in self.sttm["columns"]:
+            bronze_schema = col.get("Bronze Schema Name")
+            bronze_table = col.get("Bronze Table name")
 
+            if bronze_schema and bronze_table:
+                source_tables.add(
+                    f"{bronze_schema.strip()}.{bronze_table.strip()}"
+                )
+                break  # ✅ take first valid occurrence
+
+        if not source_tables:
+            raise ValueError(
+                "Bronze Schema/Table not found in STTM columns. "
+                "Parser must include 'Bronze Schema Name' and 'Bronze Table name'."
+            )
+
+        # ✅ Process column transformations
+        for col in self.sttm["columns"]:
             name = col["target_column"]
             dtype = col["data_type"]
             raw_transform = col.get("transform", "")
 
             transform_sql, filter_sql, join_sql = self._split_transform(raw_transform)
-
-            # ✅ ✅ ✅ EXACT MATCH TO EXCEL HEADER
-            bronze_table = col.get("Bronze Table name")   # ✅ FIX HERE
-
-            if bronze_table:
-                source_tables.add(bronze_table.strip())
 
             entry = {
                 "name": name,
@@ -42,22 +52,15 @@ class STTMReasoningAgent:
             else:
                 business_columns.append(entry)
 
-        if not source_tables:
-            raise ValueError(
-                "Bronze Table name not found. "
-                "Check STTM column header spelling exactly."
-            )
-
         return {
             "target": self.sttm["target"],
             "audit_columns": audit_columns,
             "business_columns": business_columns,
             "all_columns": all_columns,
-            "source_tables": list(source_tables)   # ✅ CORRECT NOW
+            "source_tables": list(source_tables)  # ✅ CORRECT NOW
         }
 
     def _split_transform(self, text):
-
         if not text:
             return None, None, None
 
