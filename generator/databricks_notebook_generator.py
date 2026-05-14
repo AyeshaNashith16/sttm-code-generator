@@ -3,176 +3,114 @@ import re
 
 class DatabricksNotebookGenerator:
     """
-    Final Version:
-    ✅ Clean SQL generation
-    ✅ Auto source detection (fixed)
-    ✅ Enterprise notebook format
+    ✅ FINAL ENTERPRISE GENERATOR
+    - Bronze table comes ONLY from Agent metadata ✅
+    - No hardcoding ✅
+    - No SQL guessing ✅
+    - Same table used everywhere ✅
     """
 
     def __init__(self, sttm_output: dict):
         self.sttm = sttm_output
 
-        # ✅ STEP 2 — AUTO SOURCE (FIXED)
-        self.main_table, self.join_tables = self._extract_source_tables()
+        # ✅ SINGLE SOURCE OF TRUTH (from Agent)
+        self.source_tables = sttm_output.get("source_tables", [])
 
-    # ✅ FIXED SOURCE EXTRACTION (robust)
-    def _extract_source_tables(self):
-        join_tables = set()
+        if not self.source_tables:
+            raise ValueError(
+                "Bronze table not provided by Agent. "
+                "Fix STTMReasoningAgent to extract Bronze Table column."
+            )
 
-        for col in self.sttm["all_columns"]:
-            join = col.get("join_sql")
-
-            if join:
-                matches = re.findall(
-                    r"uc_[\w\.]+\.tbl_[\w]+", join
-                )
-                for m in matches:
-                    join_tables.add(m.strip())
-
-        # ✅ Primary table fallback (safe default from STTM)
-        main_table = "uc_dev_snt_fdn_01.fdn_material_bronze_view.tbl_SNT_SUPP_DDHPIRTEURMARA"
-
-        return main_table, list(join_tables)
+        # ✅ BASE (Bronze) table
+        self.main_table = self.source_tables[0]
 
     def build_transformation_sql(self):
         select_lines = []
         join_clause = ""
-        filter_clause = ""
 
         for col in self.sttm["all_columns"]:
             name = col["name"]
             transform = col.get("transform_sql")
             join = col.get("join_sql")
-            filter_ = col.get("filter_sql")
 
-            # ✅ TRANSFORM LOGIC
             if transform:
                 t = transform.strip().rstrip(",")
 
-                # Clean Excel artefacts
-                t = t.replace("ANDS.", "AND S.")
+                # Clean formatting
                 t = re.sub(r"\s+", " ", t)
                 t = t.replace("&lt;&gt;", " <> ")
 
-                # ✅ FORMAT CASE
                 if "CASE" in t:
                     t = (
                         t.replace(" CASE", "\n        CASE")
                          .replace(" WHEN", "\n            WHEN")
-                         .replace(" THEN", " THEN")
                          .replace(" ELSE", "\n            ELSE")
                          .replace(" END", "\n        END")
                     )
-                    select_lines.append(f"{t}")
-
+                    select_lines.append(t)
                 elif t.lower() == "direct":
                     select_lines.append(f"        {name}")
-
                 elif "CURRENT_TIMESTAMP" in t:
                     select_lines.append(f"        CURRENT_TIMESTAMP AS {name}")
-
                 elif t.lower() == "default":
                     select_lines.append(f"        NULL AS {name}")
-
                 else:
                     select_lines.append(f"        {t} AS {name}")
-
             else:
                 select_lines.append(f"        {name}")
 
-            # ✅ JOIN FIX (FINAL)
-            if join and join.lower() != "none" and not join_clause:
+            # ✅ JOIN (MARC will stay JOIN, never base)
+            if join and not join_clause:
                 j = re.sub(r"\s+", " ", join.strip())
 
                 if j.startswith("INNER") and not j.startswith("INNER JOIN"):
                     j = j.replace("INNER", "INNER JOIN", 1)
 
-                # ✅ FORCE S1 alias if needed
-                if "tbl_SNT_SUPP_DDHPIRTEURMARC" in j:
-                    j = j.replace(
-                        "tbl_SNT_SUPP_DDHPIRTEURMARC",
-                        "tbl_SNT_SUPP_DDHPIRTEURMARC S1"
-                    )
+                join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
 
-                join_clause = j
-
-            # ✅ FILTER
-            if filter_ and filter_.lower() != "none":
-                filter_clause = filter_.strip()
-
-        return select_lines, join_clause, filter_clause
+        return ",\n".join(select_lines), join_clause
 
     def generate(self) -> str:
 
         database = self.sttm["target"]["database"]
         table = self.sttm["target"]["table"]
 
-        all_columns = [col["name"] for col in self.sttm["all_columns"]]
+        bronze_table = self.main_table
+        bronze_short = bronze_table.split(".")[-1]
 
-        select_lines, join_clause, _ = self.build_transformation_sql()
-        select_sql = ",\n".join(select_lines).rstrip(",")
+        select_sql, join_clause = self.build_transformation_sql()
 
-        main_table = self.main_table
-
-        # ✅ HEADER
+        # ✅ HEADER (CORRECT)
         header = f"""# Databricks notebook source
 # MAGIC %md
 # MAGIC ## Overview
-# MAGIC This code is generated by STTM Code Generation Tool
-# MAGIC
-# MAGIC ##### Project Name: Data Distribution Hub
-# MAGIC
-# MAGIC ### Version History
-# MAGIC
-# MAGIC | S.No | Author | Date | Desc |
-# MAGIC |------|--------|------|------|
-# MAGIC | 1 | AutoGen | 2026-04-29 | Initial Generation |
+# MAGIC Enterprise STTM Generated Notebook
 # MAGIC
 # MAGIC ### Source and Target Info
-# MAGIC
 # MAGIC | Source DB | Source Table | Target DB | Target Table |
 # MAGIC |-----------|--------------|-----------|--------------|
-# MAGIC | uc_dev_snt_fdn_01.fdn_material_bronze_view | {main_table} | {database} | {table} |
+# MAGIC | not provided | {bronze_short} | {database} | {table} |
 """
 
-        # ✅ IMPORTS
         imports = """
 # COMMAND ----------
 
-# DBTITLE 1,Import Libraries
 from pyspark.sql.window import Window
 from datetime import datetime
 import json
 """
 
-        # ✅ CONFIG
         config = """
 # COMMAND ----------
-
-# MAGIC %md ## Capture Parameters
 
 dbutils.widgets.text("task_name","","")
 task_name = dbutils.widgets.get("task_name")
 
-job_config = {}
 env = "dev"
 """
 
-        # ✅ AUDIT
-        audit = f"""
-# COMMAND ----------
-
-# MAGIC %md ## Audit Configuration
-
-audit_config = {{
-    "target_table": "{database}.{table}",
-    "start_time": str(datetime.now())
-}}
-
-print("Audit config:", audit_config)
-"""
-
-        # ✅ READ (dynamic now)
+        # ✅ READ SOURCE (Bronze table only)
         read_section = f"""
 # COMMAND ----------
 
@@ -180,11 +118,11 @@ print("Audit config:", audit_config)
 
 base_df = spark.sql(f\"\"\"
 SELECT *
-FROM {main_table}
+FROM {bronze_table}
 \"\"\")
 """
 
-        # ✅ TRANSFORM (dynamic now)
+        # ✅ TRANSFORMATION (Bronze table as base)
         transform = f"""
 # COMMAND ----------
 
@@ -193,23 +131,19 @@ FROM {main_table}
 transformed_df = spark.sql(f\"\"\"
 SELECT
 {select_sql}
-FROM {main_table} S
+FROM {bronze_table} S
 {join_clause}
 \"\"\")
 """
 
-        # ✅ FINAL SELECT
-        final_select = f"""
+        final_select = """
 # COMMAND ----------
 
 # MAGIC %md ## Final Selection
 
-gold_final_df = transformed_df.select(
-    {", ".join([f'"{c}"' for c in all_columns])}
-)
+gold_final_df = transformed_df.select("*")
 """
 
-        # ✅ LOAD
         load = f"""
 # COMMAND ----------
 
@@ -220,14 +154,13 @@ gold_final_df.write \\
     .mode("append") \\
     .saveAsTable("{database}.{table}")
 
-print("Load completed for {database}.{table}")
+print("✅ Load completed for {database}.{table}")
 """
 
         return (
             header
             + imports
             + config
-            + audit
             + read_section
             + transform
             + final_select
