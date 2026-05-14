@@ -90,4 +90,4 @@ class STTMReasoningAgent:
                 join = part.replace("JOIN", "").strip()
 
         return transform, filter_, join
-``
+
