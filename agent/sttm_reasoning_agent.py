@@ -8,7 +8,8 @@ class STTMReasoningAgent:
         business_columns = []
         all_columns = []
 
-        source_tables = set()   # ✅ NEW (correct place)
+        # ✅ SINGLE SOURCE OF TRUTH
+        source_tables = set()
 
         for col in self.sttm["columns"]:
 
@@ -16,8 +17,21 @@ class STTMReasoningAgent:
             dtype = col["data_type"]
             raw_transform = col.get("transform", "")
 
-            # ✅ Split transform correctly
+            # ✅ Split transform
             transform_sql, filter_sql, join_sql = self._split_transform(raw_transform)
+
+            # ✅ ✅ ✅ CRITICAL FIX
+            # Bronze table comes from STTM 2nd column
+            # Change key ONLY if your column name differs
+            bronze_table = (
+                col.get("Bronze Table Name") or
+                col.get("Bronze Table") or
+                col.get("Source Table") or
+                col.get("source_table")
+            )
+
+            if bronze_table:
+                source_tables.add(bronze_table.strip())
 
             entry = {
                 "name": name,
@@ -29,13 +43,6 @@ class STTMReasoningAgent:
 
             all_columns.append(entry)
 
-            # ✅ Extract source tables HERE (correct place)
-            if raw_transform and "tbl_" in raw_transform:
-                lines = raw_transform.split("\n")
-                for line in lines:
-                    if "tbl_" in line:
-                        source_tables.add(line.strip())
-
             # ✅ classify columns
             if name.lower().startswith("xtndf") or name.lower() in (
                 "createdtime", "createdbyid", "updatedtime", "updatedbyid"
@@ -44,12 +51,17 @@ class STTMReasoningAgent:
             else:
                 business_columns.append(entry)
 
+        if not source_tables:
+            raise ValueError(
+                "Bronze table not found. Check STTM column header for Bronze Table Name."
+            )
+
         return {
             "target": self.sttm["target"],
             "audit_columns": audit_columns,
             "business_columns": business_columns,
             "all_columns": all_columns,
-            "source_tables": list(source_tables)   # ✅ now correct
+            "source_tables": list(source_tables)   # ✅ CORRECT VALUE
         }
 
     def _split_transform(self, text):
@@ -77,5 +89,5 @@ class STTMReasoningAgent:
             elif part.startswith("JOIN"):
                 join = part.replace("JOIN", "").strip()
 
-        # ✅ RETURN ONLY THESE
         return transform, filter_, join
+``
