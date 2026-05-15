@@ -3,11 +3,7 @@ import pandas as pd
 
 class STTMExcelParser:
     """
-    Canonical STTM Model
-    """
-
-    def __init__(self, file_path: str, sheet_name: str = "Ayesha"):
-        self.file_path = file_path
+    Canonical ST self.file_path = file_path    Canonical STTM Model
         self.sheet_name = sheet_name
 
     def read(self) -> dict:
@@ -27,6 +23,9 @@ class STTMExcelParser:
         target_db = None
         target_table = None
         columns = []
+
+        # ✅ NEW: Common Join Logic
+        common_join = None
 
         # ✅ 1️⃣ Find header row and column indexes
         for i in range(len(df)):
@@ -52,12 +51,18 @@ class STTMExcelParser:
         if header_row_idx is None:
             raise ValueError("Header row not found")
 
-        # ✅ 2️⃣ Parse data rows
+        # ✅ 2️⃣ Extract Common Join Logic (TABLE LEVEL)
+        for i in range(len(df)):
+            row = df.iloc[i].astype(str).str.strip().tolist()
+            if "Common Join Logic:" in row:
+                common_join = df.iloc[i + 1].astype(str).str.strip().tolist()[0]
+                break
+
+        # ✅ 3️⃣ Parse column rows
         for i in range(header_row_idx + 1, len(df)):
             row = df.iloc[i]
             row_values = row.astype(str).str.strip().tolist()
 
-            # ✅ Detect target DB / table
             for cell in row_values:
                 if isinstance(cell, str):
                     if cell.startswith("mdm_"):
@@ -74,13 +79,8 @@ class STTMExcelParser:
                 if isinstance(transform_cell, str):
                     transform_text = transform_cell.strip()
 
-            bronze_schema = None
-            bronze_table = None
-
-            if bronze_schema_idx is not None:
-                bronze_schema = row[bronze_schema_idx]
-            if bronze_table_idx is not None:
-                bronze_table = row[bronze_table_idx]
+            bronze_schema = row[bronze_schema_idx] if bronze_schema_idx is not None else None
+            bronze_table = row[bronze_table_idx] if bronze_table_idx is not None else None
 
             if (
                 isinstance(target_col, str)
@@ -105,4 +105,9 @@ class STTMExcelParser:
                 "table": target_table,
             },
             "columns": columns,
+            "common_join": common_join   # ✅ NEW
         }
+
+    """
+
+    def __init__(self, file_path: str, sheet_name: str = "Ayesha"):
