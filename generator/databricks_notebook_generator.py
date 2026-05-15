@@ -3,26 +3,10 @@ import re
 
 class DatabricksNotebookGenerator:
     """
-    ✅ FINAL ENTERPRISE GENERATOR
-    - Bronze table comes ONLY from Agent metadata ✅
-    - No hardcoding ✅
-    - No SQL guessing ✅
-    - Same table used everywhere ✅
-    """
-
-    def __init__(self, sttm_output: dict):
-        self.sttm = sttm_output
-
-        # ✅ SINGLE SOURCE OF TRUTH (from Agent)
-        self.source_tables = sttm_output.get("source_tables", [])
-
+   tm_output.get("source_tables", [])    ✅ FINAL ENTERPRISE GENERATOR
         if not self.source_tables:
-            raise ValueError(
-                "Bronze table not provided by Agent. "
-                "Fix STTMReasoningAgent to extract Bronze Table column."
-            )
+            raise ValueError("Bronze table not provided by Agent")
 
-        # ✅ BASE (Bronze) table
         self.main_table = self.source_tables[0]
 
     def build_transformation_sql(self):
@@ -36,10 +20,8 @@ class DatabricksNotebookGenerator:
 
             if transform:
                 t = transform.strip().rstrip(",")
-
-                # Clean formatting
                 t = re.sub(r"\s+", " ", t)
-                t = t.replace("&lt;&gt;", " <> ")
+                t = t.replace("<>", " <> ")
 
                 if "CASE" in t:
                     t = (
@@ -60,10 +42,8 @@ class DatabricksNotebookGenerator:
             else:
                 select_lines.append(f"        {name}")
 
-            # ✅ JOIN (MARC will stay JOIN, never base)
             if join and not join_clause:
                 j = re.sub(r"\s+", " ", join.strip())
-
                 if j.startswith("INNER") and not j.startswith("INNER JOIN"):
                     j = j.replace("INNER", "INNER JOIN", 1)
 
@@ -72,16 +52,16 @@ class DatabricksNotebookGenerator:
         return ",\n".join(select_lines), join_clause or ""
 
     def generate(self) -> str:
-
         database = self.sttm["target"]["database"]
         table = self.sttm["target"]["table"]
 
         bronze_table = self.main_table
         bronze_short = bronze_table.split(".")[-1]
 
+        source_db = self.sttm.get("source_db", "not provided")
+
         select_sql, join_clause = self.build_transformation_sql()
 
-        # ✅ HEADER (CORRECT)
         header = f"""# Databricks notebook source
 # MAGIC %md
 # MAGIC ## Overview
@@ -90,8 +70,7 @@ class DatabricksNotebookGenerator:
 # MAGIC ### Source and Target Info
 # MAGIC | Source DB | Source Table | Target DB | Target Table |
 # MAGIC |-----------|--------------|-----------|--------------|
-source_db = self.sttm.get("source_db", "not provided")
-#MAGIC  | {source_db} | {bronze_short} | {database} | {table} |
+# MAGIC | {source_db} | {bronze_short} | {database} | {table} |
 """
 
         imports = """
@@ -102,16 +81,6 @@ from datetime import datetime
 import json
 """
 
-        config = """
-# COMMAND ----------
-
-dbutils.widgets.text("task_name","","")
-task_name = dbutils.widgets.get("task_name")
-
-env = "dev"
-"""
-
-        # ✅ READ SOURCE (Bronze table only)
         read_section = f"""
 # COMMAND ----------
 
@@ -123,7 +92,6 @@ FROM {bronze_table}
 \"\"\")
 """
 
-        # ✅ TRANSFORMATION (Bronze table as base)
         transform = f"""
 # COMMAND ----------
 
@@ -161,9 +129,13 @@ print("✅ Load completed for {database}.{table}")
         return (
             header
             + imports
-            + config
             + read_section
             + transform
             + final_select
             + load
         )
+    """
+
+    def __init__(self, sttm_output: dict):
+        self.sttm = sttm_output
+
