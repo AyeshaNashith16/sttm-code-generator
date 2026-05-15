@@ -19,46 +19,41 @@ class DatabricksNotebookGenerator:
         self.main_table = self.source_tables[0]
 
     def build_transformation_sql(self):
-        select_lines = []
-        join_clause = ""
+    select_lines = []
 
-        for col in self.sttm["all_columns"]:
-            name = col["name"]
-            transform = col.get("transform_sql")
-            join_clause = self.sttm.get("common_join") or ""
+    for col in self.sttm["all_columns"]:
+        name = col["name"]
+        transform = col.get("transform_sql")
 
-            if transform:
-                t = transform.strip().rstrip(",")
-                t = re.sub(r"\s+", " ", t)
-                t = t.replace("<>", " <> ")
+        if transform:
+            t = transform.strip().rstrip(",")
+            t = re.sub(r"\s+", " ", t)
+            t = t.replace("<>", " <> ")
 
-                if "CASE" in t:
-                    t = (
-                        t.replace(" CASE", "\n        CASE")
-                        .replace(" WHEN", "\n            WHEN")
-                        .replace(" ELSE", "\n            ELSE")
-                        .replace(" END", "\n        END")
-                    )
-                    select_lines.append(t)
-                elif t.lower() == "direct":
-                    select_lines.append(f"        {name}")
-                elif "CURRENT_TIMESTAMP" in t:
-                    select_lines.append(f"        CURRENT_TIMESTAMP AS {name}")
-                elif t.lower() == "default":
-                    select_lines.append(f"        NULL AS {name}")
-                else:
-                    select_lines.append(f"        {t} AS {name}")
-            else:
+            if "CASE" in t:
+                t = (
+                    t.replace(" CASE", "\n        CASE")
+                     .replace(" WHEN", "\n            WHEN")
+                     .replace(" ELSE", "\n            ELSE")
+                     .replace(" END", "\n        END")
+                )
+                select_lines.append(t)
+            elif t.lower() == "direct":
                 select_lines.append(f"        {name}")
+            elif "CURRENT_TIMESTAMP" in t:
+                select_lines.append(f"        CURRENT_TIMESTAMP AS {name}")
+            elif t.lower() == "default":
+                select_lines.append(f"        NULL AS {name}")
+            else:
+                select_lines.append(f"        {t} AS {name}")
+        else:
+            select_lines.append(f"        {name}")
 
-            if join and not join_clause:
-                j = re.sub(r"\s+", " ", join.strip())
-                if j.startswith("INNER") and not j.startswith("INNER JOIN"):
-                    j = j.replace("INNER", "INNER JOIN", 1)
+    # ✅ JOIN NOW COMES FROM TABLE‑LEVEL STTM
+    join_clause = self.sttm.get("common_join") or ""
 
-                join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
+    return ",\n".join(select_lines), join_clause
 
-        return ",\n".join(select_lines), join_clause or ""
 
     def generate(self) -> str:
         database = self.sttm["target"]["database"]
