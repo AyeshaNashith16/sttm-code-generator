@@ -95,12 +95,16 @@ FROM {bronze_table}
 
 # MAGIC %md ## Transformation
 
-transformed_df = spark.sql(f\"\"\"
+# ✅ Build FROM clause correctly
+from_clause = f"{bronze_table} S"
+if join_clause:
+    from_clause = f"{bronze_table} S\n{join_clause}"
+
+transformed_df = spark.sql(f"""
 SELECT
 {select_sql}
 FROM {from_clause}
-\"\"\")
-"""
+""")
 
         final_select = """
 # COMMAND ----------
