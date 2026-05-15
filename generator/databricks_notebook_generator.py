@@ -4,6 +4,8 @@ import re
 class DatabricksNotebookGenerator:
     """
     FINAL ENTERPRISE GENERATOR
+    - Base table from Agent
+    - JOIN from Common Join Logic
     """
 
     def __init__(self, sttm_output: dict):
@@ -30,9 +32,9 @@ class DatabricksNotebookGenerator:
                 if "CASE" in t:
                     t = (
                         t.replace(" CASE", "\n        CASE")
-                        .replace(" WHEN", "\n            WHEN")
-                        .replace(" ELSE", "\n            ELSE")
-                        .replace(" END", "\n        END")
+                         .replace(" WHEN", "\n            WHEN")
+                         .replace(" ELSE", "\n            ELSE")
+                         .replace(" END", "\n        END")
                     )
                     select_lines.append(t)
                 elif t.lower() == "direct":
@@ -46,7 +48,9 @@ class DatabricksNotebookGenerator:
             else:
                 select_lines.append(f"        {name}")
 
+        # ✅ JOIN COMES ONLY FROM TABLE‑LEVEL STTM
         join_clause = self.sttm.get("common_join") or ""
+
         return ",\n".join(select_lines), join_clause
 
     def generate(self) -> str:
@@ -58,6 +62,11 @@ class DatabricksNotebookGenerator:
         source_db = self.sttm.get("source_db", "not provided")
 
         select_sql, join_clause = self.build_transformation_sql()
+
+        # ✅ FIX: build FROM clause correctly
+        from_clause = f"{bronze_table} S"
+        if join_clause:
+            from_clause = f"{bronze_table} S\n{join_clause}"
 
         header = f"""# Databricks notebook source
 # MAGIC %md
@@ -89,8 +98,7 @@ FROM {bronze_table}
 transformed_df = spark.sql(f\"\"\"
 SELECT
 {select_sql}
-FROM {bronze_table} S
-{join_clause}
+FROM {from_clause}
 \"\"\")
 """
 
