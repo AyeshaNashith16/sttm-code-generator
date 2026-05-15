@@ -19,7 +19,7 @@ class DatabricksNotebookGenerator:
         self.main_table = self.source_tables[0]
 
     def build_transformation_sql(self):
-    select_lines = []
+       select_lines = []
 
     for col in self.sttm["all_columns"]:
         name = col["name"]
