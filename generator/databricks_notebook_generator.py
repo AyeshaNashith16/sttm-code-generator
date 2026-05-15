@@ -69,7 +69,7 @@ class DatabricksNotebookGenerator:
 
                 join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
 
-        return ",\n".join(select_lines), join_clause
+        return ",\n".join(select_lines), join_clause or ""
 
     def generate(self) -> str:
 
@@ -90,7 +90,8 @@ class DatabricksNotebookGenerator:
 # MAGIC ### Source and Target Info
 # MAGIC | Source DB | Source Table | Target DB | Target Table |
 # MAGIC |-----------|--------------|-----------|--------------|
-# MAGIC | not provided | {bronze_short} | {database} | {table} |
+source_db = self.sttm.get("source_db", "not provided")
+#MAGIC  | {source_db} | {bronze_short} | {database} | {table} |
 """
 
         imports = """
