@@ -110,4 +110,6 @@ class STTMExcelParser:
 
     """
 
-    def __init__(self, file_path: str, sheet_name: str = "Ayesha"):
+    def __init__(self, file_path: str, sheet_name: str):
+       self.file_path = file_path
+       self.sheet_name = sheet_name
