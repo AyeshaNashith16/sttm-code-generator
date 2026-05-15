@@ -3,10 +3,7 @@ import re
 
 class DatabricksNotebookGenerator:
     """
-    ✅ FINAL ENTERPRISE GENERATOR
-    - Bronze table comes from Agent metadata
-    - No hardcoding
-    - Same table used everywhere
+    FINAL ENTERPRISE GENERATOR
     """
 
     def __init__(self, sttm_output: dict):
@@ -33,9 +30,9 @@ class DatabricksNotebookGenerator:
                 if "CASE" in t:
                     t = (
                         t.replace(" CASE", "\n        CASE")
-                         .replace(" WHEN", "\n            WHEN")
-                         .replace(" ELSE", "\n            ELSE")
-                         .replace(" END", "\n        END")
+                        .replace(" WHEN", "\n            WHEN")
+                        .replace(" ELSE", "\n            ELSE")
+                        .replace(" END", "\n        END")
                     )
                     select_lines.append(t)
                 elif t.lower() == "direct":
@@ -49,9 +46,7 @@ class DatabricksNotebookGenerator:
             else:
                 select_lines.append(f"        {name}")
 
-        # ✅ JOIN comes ONLY from table‑level STTM
         join_clause = self.sttm.get("common_join") or ""
-
         return ",\n".join(select_lines), join_clause
 
     def generate(self) -> str:
@@ -117,8 +112,7 @@ gold_final_df.write \\
     .mode("append") \\
     .saveAsTable("{database}.{table}")
 
-print("✅ Load completed for {database}.{table}")
+print("Load completed for {database}.{table}")
 """
 
         return header + read_section + transform + final_select + load
-``
