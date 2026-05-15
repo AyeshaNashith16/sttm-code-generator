@@ -9,13 +9,15 @@ class STTMReasoningAgent:
         all_columns = []
 
         source_tables = set()
+        source_db = None   # ✅ NEW
 
-        # ✅ ✅ CORRECT: extract Bronze table from column-level metadata
+        # ✅ Extract Bronze Schema + Table ONCE
         for col in self.sttm["columns"]:
             bronze_schema = col.get("Bronze Schema Name")
             bronze_table = col.get("Bronze Table name")
 
             if bronze_schema and bronze_table:
+                source_db = bronze_schema.strip()   # ✅ FIX: capture source DB
                 source_tables.add(
                     f"{bronze_schema.strip()}.{bronze_table.strip()}"
                 )
@@ -57,7 +59,8 @@ class STTMReasoningAgent:
             "audit_columns": audit_columns,
             "business_columns": business_columns,
             "all_columns": all_columns,
-            "source_tables": list(source_tables)  # ✅ CORRECT NOW
+            "source_tables": list(source_tables),   # ✅ existing
+            "source_db": source_db                 # ✅ NEW FIELD
         }
 
     def _split_transform(self, text):
@@ -78,3 +81,4 @@ class STTMReasoningAgent:
                 join = part.replace("JOIN", "").strip()
 
         return transform, filter_, join
+``
