@@ -48,7 +48,7 @@ class DatabricksNotebookGenerator:
             else:
                 select_lines.append(f"        {name}")
 
-        # ✅ JOIN COMES ONLY FROM TABLE‑LEVEL STTM
+        # ✅ JOIN comes only from Common Join Logic
         join_clause = self.sttm.get("common_join") or ""
 
         return ",\n".join(select_lines), join_clause
@@ -63,7 +63,7 @@ class DatabricksNotebookGenerator:
 
         select_sql, join_clause = self.build_transformation_sql()
 
-        # ✅ FIX: build FROM clause correctly
+        # ✅ BUILD FROM CLAUSE CORRECTLY
         from_clause = f"{bronze_table} S"
         if join_clause:
             from_clause = f"{bronze_table} S\n{join_clause}"
@@ -95,16 +95,12 @@ FROM {bronze_table}
 
 # MAGIC %md ## Transformation
 
-# ✅ Build FROM clause correctly
-from_clause = f"{bronze_table} S"
-if join_clause:
-    from_clause = f"{bronze_table} S\n{join_clause}"
-
-transformed_df = spark.sql(f"""
+transformed_df = spark.sql(f\"\"\"
 SELECT
 {select_sql}
 FROM {from_clause}
-""")
+\"\"\")
+"""
 
         final_select = """
 # COMMAND ----------
