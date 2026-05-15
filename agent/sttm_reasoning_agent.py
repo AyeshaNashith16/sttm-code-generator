@@ -1,15 +1,6 @@
 class STTMReasoningAgent:
 
-    def __init__(self, sttm_metadata: dict):
-        self.sttm = sttm_metadata
-
-    def analyze(self) -> dict:
-        audit_columns = []
-        business_columns = []
-        all_columns = []
-
-        source_tables = set()
-        source_db = None   # ✅ NEW
+    def __init__(self, = None    def __init__(self, sttm_metadata: dict):
 
         # ✅ Extract Bronze Schema + Table ONCE
         for col in self.sttm["columns"]:
@@ -17,11 +8,11 @@ class STTMReasoningAgent:
             bronze_table = col.get("Bronze Table name")
 
             if bronze_schema and bronze_table:
-                source_db = bronze_schema.strip()   # ✅ FIX: capture source DB
+                source_db = bronze_schema.strip()
                 source_tables.add(
                     f"{bronze_schema.strip()}.{bronze_table.strip()}"
                 )
-                break  # ✅ take first valid occurrence
+                break
 
         if not source_tables:
             raise ValueError(
@@ -29,7 +20,6 @@ class STTMReasoningAgent:
                 "Parser must include 'Bronze Schema Name' and 'Bronze Table name'."
             )
 
-        # ✅ Process column transformations
         for col in self.sttm["columns"]:
             name = col["target_column"]
             dtype = col["data_type"]
@@ -59,8 +49,8 @@ class STTMReasoningAgent:
             "audit_columns": audit_columns,
             "business_columns": business_columns,
             "all_columns": all_columns,
-            "source_tables": list(source_tables),   # ✅ existing
-            "source_db": source_db                 # ✅ NEW FIELD
+            "source_tables": list(source_tables),
+            "source_db": source_db
         }
 
     def _split_transform(self, text):
@@ -81,4 +71,12 @@ class STTMReasoningAgent:
                 join = part.replace("JOIN", "").strip()
 
         return transform, filter_, join
+``
+        self.sttm = sttm_metadata
 
+    def analyze(self) -> dict:
+        audit_columns = []
+        business_columns = []
+        all_columns = []
+
+        source_tables = set()
