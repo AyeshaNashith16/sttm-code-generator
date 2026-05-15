@@ -3,7 +3,16 @@ import re
 
 class DatabricksNotebookGenerator:
     """
-   tm_output.get("source_tables", [])    ✅ FINAL ENTERPRISE GENERATOR
+    ✅ FINAL ENTERPRISE GENERATOR
+    - Bronze table comes from Agent metadata
+    - No hardcoding
+    - Same table used everywhere
+    """
+
+    def __init__(self, sttm_output: dict):
+        self.sttm = sttm_output
+
+        self.source_tables = sttm_output.get("source_tables", [])
         if not self.source_tables:
             raise ValueError("Bronze table not provided by Agent")
 
@@ -26,9 +35,9 @@ class DatabricksNotebookGenerator:
                 if "CASE" in t:
                     t = (
                         t.replace(" CASE", "\n        CASE")
-                         .replace(" WHEN", "\n            WHEN")
-                         .replace(" ELSE", "\n            ELSE")
-                         .replace(" END", "\n        END")
+                        .replace(" WHEN", "\n            WHEN")
+                        .replace(" ELSE", "\n            ELSE")
+                        .replace(" END", "\n        END")
                     )
                     select_lines.append(t)
                 elif t.lower() == "direct":
@@ -57,7 +66,6 @@ class DatabricksNotebookGenerator:
 
         bronze_table = self.main_table
         bronze_short = bronze_table.split(".")[-1]
-
         source_db = self.sttm.get("source_db", "not provided")
 
         select_sql, join_clause = self.build_transformation_sql()
@@ -71,14 +79,6 @@ class DatabricksNotebookGenerator:
 # MAGIC | Source DB | Source Table | Target DB | Target Table |
 # MAGIC |-----------|--------------|-----------|--------------|
 # MAGIC | {source_db} | {bronze_short} | {database} | {table} |
-"""
-
-        imports = """
-# COMMAND ----------
-
-from pyspark.sql.window import Window
-from datetime import datetime
-import json
 """
 
         read_section = f"""
@@ -126,16 +126,4 @@ gold_final_df.write \\
 print("✅ Load completed for {database}.{table}")
 """
 
-        return (
-            header
-            + imports
-            + read_section
-            + transform
-            + final_select
-            + load
-        )
-    """
-
-    def __init__(self, sttm_output: dict):
-        self.sttm = sttm_output
-
+        return header + read_section + transform + final_select + load
