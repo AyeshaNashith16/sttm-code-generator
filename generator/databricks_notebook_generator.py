@@ -25,7 +25,7 @@ class DatabricksNotebookGenerator:
         for col in self.sttm["all_columns"]:
             name = col["name"]
             transform = col.get("transform_sql")
-            join = col.get("join_sql")
+            join_clause = self.sttm.get("common_join") or ""
 
             if transform:
                 t = transform.strip().rstrip(",")
