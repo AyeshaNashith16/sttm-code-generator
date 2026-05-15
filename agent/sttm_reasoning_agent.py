@@ -1,6 +1,15 @@
 class STTMReasoningAgent:
 
-    def __init__(self, = None    def __init__(self, sttm_metadata: dict):
+    def __init__(self, sttm_metadata: dict):
+        self.sttm = sttm_metadata
+
+    def analyze(self) -> dict:
+        audit_columns = []
+        business_columns = []
+        all_columns = []
+
+        source_tables = set()
+        source_db = None
 
         # ✅ Extract Bronze Schema + Table ONCE
         for col in self.sttm["columns"]:
@@ -16,10 +25,10 @@ class STTMReasoningAgent:
 
         if not source_tables:
             raise ValueError(
-                "Bronze Schema/Table not found in STTM columns. "
-                "Parser must include 'Bronze Schema Name' and 'Bronze Table name'."
+                "Bronze Schema/Table not found in STTM columns."
             )
 
+        # ✅ Column processing
         for col in self.sttm["columns"]:
             name = col["target_column"]
             dtype = col["data_type"]
@@ -50,7 +59,8 @@ class STTMReasoningAgent:
             "business_columns": business_columns,
             "all_columns": all_columns,
             "source_tables": list(source_tables),
-            "source_db": source_db
+            "source_db": source_db,
+            "common_join": self.sttm.get("common_join")   # ✅ NEW
         }
 
     def _split_transform(self, text):
@@ -71,12 +81,3 @@ class STTMReasoningAgent:
                 join = part.replace("JOIN", "").strip()
 
         return transform, filter_, join
-``
-        self.sttm = sttm_metadata
-
-    def analyze(self) -> dict:
-        audit_columns = []
-        business_columns = []
-        all_columns = []
-
-        source_tables = set()
