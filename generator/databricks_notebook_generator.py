@@ -5,7 +5,7 @@ class DatabricksNotebookGenerator:
     """
     FINAL ENTERPRISE GENERATOR
     - Base table from Agent
-    - JOIN from Common Join Logic
+    - JOIN from transformation column (working logic)
     """
 
     def __init__(self, sttm_output: dict):
@@ -19,24 +19,24 @@ class DatabricksNotebookGenerator:
 
     def build_transformation_sql(self):
         select_lines = []
+        join_clause = ""
 
         for col in self.sttm["all_columns"]:
             name = col["name"]
             transform = col.get("transform_sql")
+            join = col.get("join_sql")   # ✅ JOIN SOURCE
 
             if transform:
                 t = transform.strip().rstrip(",")
-
-                # ✅ clean properly
                 t = re.sub(r"\s+", " ", t)
                 t = t.replace("<>", " <> ")
 
                 if "CASE" in t:
                     t = (
                         t.replace(" CASE", "\n        CASE")
-                        .replace(" WHEN", "\n            WHEN")
-                        .replace(" ELSE", "\n            ELSE")
-                        .replace(" END", "\n        END")
+                         .replace(" WHEN", "\n            WHEN")
+                         .replace(" ELSE", "\n            ELSE")
+                         .replace(" END", "\n        END")
                     )
                     select_lines.append(t)
 
@@ -55,8 +55,14 @@ class DatabricksNotebookGenerator:
             else:
                 select_lines.append(f"        {name}")
 
-        # ✅ JOIN FROM TABLE-LEVEL STTM (NO CHANGE)
-        join_clause = self.sttm.get("common_join") or ""
+            # ✅ ✅ WORKING JOIN LOGIC (THIS IS THE FIX)
+            if join and str(join).lower() != "none" and not join_clause:
+                j = re.sub(r"\s+", " ", join.strip())
+
+                if j.startswith("INNER") and not j.startswith("INNER JOIN"):
+                    j = j.replace("INNER", "INNER JOIN", 1)
+
+                join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
 
         return ",\n".join(select_lines), join_clause
 
@@ -66,12 +72,11 @@ class DatabricksNotebookGenerator:
 
         bronze_table = self.main_table
         bronze_short = bronze_table.split(".")[-1]
-
         source_db = self.sttm.get("source_db", "not provided")
 
         select_sql, join_clause = self.build_transformation_sql()
 
-        # ✅ SAME CORRECT LOGIC (unchanged)
+        # ✅ FROM CLAUSE (SAME LOGIC, CLEAN)
         from_clause = f"{bronze_table} S"
         if join_clause:
             from_clause = f"{bronze_table} S\n{join_clause}"
