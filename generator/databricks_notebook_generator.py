@@ -26,29 +26,36 @@ class DatabricksNotebookGenerator:
 
             if transform:
                 t = transform.strip().rstrip(",")
+
+                # ✅ clean properly
                 t = re.sub(r"\s+", " ", t)
                 t = t.replace("<>", " <> ")
 
                 if "CASE" in t:
                     t = (
                         t.replace(" CASE", "\n        CASE")
-                         .replace(" WHEN", "\n            WHEN")
-                         .replace(" ELSE", "\n            ELSE")
-                         .replace(" END", "\n        END")
+                        .replace(" WHEN", "\n            WHEN")
+                        .replace(" ELSE", "\n            ELSE")
+                        .replace(" END", "\n        END")
                     )
                     select_lines.append(t)
+
                 elif t.lower() == "direct":
                     select_lines.append(f"        {name}")
+
                 elif "CURRENT_TIMESTAMP" in t:
                     select_lines.append(f"        CURRENT_TIMESTAMP AS {name}")
+
                 elif t.lower() == "default":
                     select_lines.append(f"        NULL AS {name}")
+
                 else:
                     select_lines.append(f"        {t} AS {name}")
+
             else:
                 select_lines.append(f"        {name}")
 
-        # ✅ JOIN comes only from Common Join Logic
+        # ✅ JOIN FROM TABLE-LEVEL STTM (NO CHANGE)
         join_clause = self.sttm.get("common_join") or ""
 
         return ",\n".join(select_lines), join_clause
@@ -59,11 +66,12 @@ class DatabricksNotebookGenerator:
 
         bronze_table = self.main_table
         bronze_short = bronze_table.split(".")[-1]
+
         source_db = self.sttm.get("source_db", "not provided")
 
         select_sql, join_clause = self.build_transformation_sql()
 
-        # ✅ BUILD FROM CLAUSE CORRECTLY
+        # ✅ SAME CORRECT LOGIC (unchanged)
         from_clause = f"{bronze_table} S"
         if join_clause:
             from_clause = f"{bronze_table} S\n{join_clause}"
