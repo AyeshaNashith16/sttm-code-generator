@@ -15,54 +15,66 @@ class DatabricksNotebookGenerator:
 
         self.main_table = self.source_tables[0]
 
-    def build_transformation_sql(self):
-        select_lines = []
-        join_clause = ""
+    def build_transformation_sql(self):def build_transformation_sql(self["all_columns"]:
+        name = col["name"]
+        transform = col.get("transform_sql")
+        join = col.get("join_sql")
 
-        for col in self.sttm["all_columns"]:
-            name = col["name"]
-            transform = col.get("transform_sql")
-            join = col.get("join_sql")
+        if transform:
+            t = transform.strip().rstrip(",")
+            t = re.sub(r"\s+", " ", t)
+            t = t.replace("&lt;&gt;", " <> ")
 
-            if transform:
-                t = transform.strip().rstrip(",")
-                t = re.sub(r"\s+", " ", t)
-                t = t.replace("<>", " <> ")
+            if "CASE" in t:
+                t = (
+                    t.replace(" CASE", "\n        CASE")
+                     .replace(" WHEN", "\n            WHEN")
+                     .replace(" ELSE", "\n            ELSE")
+                     .replace(" END", "\n        END")
+                )
+                select_lines.append(t)
 
-                if "CASE" in t:
-                    t = (
-                        t.replace(" CASE", "\n        CASE")
-                         .replace(" WHEN", "\n            WHEN")
-                         .replace(" ELSE", "\n            ELSE")
-                         .replace(" END", "\n        END")
-                    )
-                    select_lines.append(t)
-
-                elif t.lower() == "direct":
-                    select_lines.append(f"        {name}")
-
-                elif "CURRENT_TIMESTAMP" in t:
-                    select_lines.append(f"        CURRENT_TIMESTAMP AS {name}")
-
-                elif t.lower() == "default":
-                    select_lines.append(f"        NULL AS {name}")
-
-                else:
-                    select_lines.append(f"        {t} AS {name}")
-
-            else:
+            elif t.lower() == "direct":
                 select_lines.append(f"        {name}")
 
-            # ✅ JOIN from transform (already includes alias S1)
-            if join and str(join).lower() != "none" and not join_clause:
-                j = re.sub(r"\s+", " ", join.strip())
+            elif "CURRENT_TIMESTAMP" in t:
+                select_lines.append(f"        CURRENT_TIMESTAMP AS {name}")
 
-                if j.startswith("INNER") and not j.startswith("INNER JOIN"):
-                    j = j.replace("INNER", "INNER JOIN", 1)
+            elif t.lower() == "default":
+                select_lines.append(f"        NULL AS {name}")
 
-                join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
+            else:
+                select_lines.append(f"        {t} AS {name}")
 
-        return ",\n".join(select_lines), join_clause
+        else:
+            select_lines.append(f"        {name}")
+
+        # ✅ ✅ JOIN LOGIC (WITH YOUR FIX ADDED)
+        if join and str(join).lower() != "none" and not join_clause:
+            j = re.sub(r"\s+", " ", join.strip())
+
+            if j.startswith("INNER") and not j.startswith("INNER JOIN"):
+                j = j.replace("INNER", "INNER JOIN", 1)
+
+            # ✅ ✅ ✅ YOUR FIX ADDED HERE
+            alias_match = re.search(r"\b(S\d+)\.", j)
+
+            if alias_match:
+                alias = alias_match.group(1)
+
+                if f" {alias}" not in j:
+                    parts = j.split(" ON ")
+                    if len(parts) == 2:
+                        j = f"{parts[0]} {alias} ON {parts[1]}"
+
+            # ✅ final formatting
+            join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
+
+    # ✅ IMPORTANT RETURN
+    return ",\n".join(select_lines), join_clause
+    select_lines = []
+    join_clause = ""
+
 
     def generate(self) -> str:
         database = self.sttm["target"]["database"]
