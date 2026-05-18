@@ -28,27 +28,21 @@ class STTMReasoningAgent:
                 "Bronze Schema/Table not found in STTM columns."
             )
 
-        # ✅ GET COMMON JOIN ONCE
-        common_join = self.sttm.get("common_join")
-
         # ✅ Column processing
         for col in self.sttm["columns"]:
             name = col["target_column"]
             dtype = col["data_type"]
             raw_transform = col.get("transform", "")
 
+            # ✅ SAME LOGIC AS FIRST CODE — DO NOT CHANGE
             transform_sql, filter_sql, join_sql = self._split_transform(raw_transform)
-
-            # ✅ ✅ ✅ FIX: INJECT COMMON JOIN INTO join_sql
-            if not join_sql and common_join:
-                join_sql = common_join
 
             entry = {
                 "name": name,
                 "type": dtype,
                 "transform_sql": transform_sql,
                 "filter_sql": filter_sql,
-                "join_sql": join_sql
+                "join_sql": join_sql   # ✅ NO OVERRIDE HERE
             }
 
             all_columns.append(entry)
@@ -67,7 +61,7 @@ class STTMReasoningAgent:
             "all_columns": all_columns,
             "source_tables": list(source_tables),
             "source_db": source_db,
-            "common_join": common_join
+            "common_join": self.sttm.get("common_join")   # ✅ keep it, but don't use it
         }
 
     def _split_transform(self, text):
@@ -78,13 +72,19 @@ class STTMReasoningAgent:
         filter_ = None
         join = None
 
-        for part in str(text).split("#"):
+        parts = str(text).split("#")
+
+        for part in parts:
             part = part.strip()
+
             if part.startswith("Transform"):
                 transform = part.replace("Transform", "").strip()
+
             elif part.startswith("Filter"):
                 filter_ = part.replace("Filter", "").strip()
+
             elif part.startswith("JOIN"):
                 join = part.replace("JOIN", "").strip()
 
         return transform, filter_, join
+``
