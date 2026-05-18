@@ -4,8 +4,6 @@ import re
 class DatabricksNotebookGenerator:
     """
     FINAL ENTERPRISE GENERATOR
-    - Base table from Agent
-    - JOIN from transformation column (working logic)
     """
 
     def __init__(self, sttm_output: dict):
@@ -26,11 +24,10 @@ class DatabricksNotebookGenerator:
             transform = col.get("transform_sql")
             join = col.get("join_sql")
 
-            # ✅ HANDLE TRANSFORM
             if transform:
                 t = transform.strip().rstrip(",")
                 t = re.sub(r"\s+", " ", t)
-                t = t.replace("&lt;&gt;", " <> ")
+                t = t.replace("<>", " <> ")
 
                 if "CASE" in t:
                     t = (
@@ -56,28 +53,15 @@ class DatabricksNotebookGenerator:
             else:
                 select_lines.append(f"        {name}")
 
-            # ✅ ✅ JOIN LOGIC (FINAL FIX)
+            # ✅ JOIN from transform (already includes alias S1)
             if join and str(join).lower() != "none" and not join_clause:
                 j = re.sub(r"\s+", " ", join.strip())
 
-                # normalize INNER JOIN
                 if j.startswith("INNER") and not j.startswith("INNER JOIN"):
                     j = j.replace("INNER", "INNER JOIN", 1)
 
-                # ✅ AUTO-FIX ALIAS (GENERIC, NO HARDCODE)
-                alias_match = re.search(r"\b(S\d+)\.", j)
-
-                if alias_match:
-                    alias = alias_match.group(1)
-
-                    if f" {alias}" not in j:
-                        parts = j.split(" ON ")
-                        if len(parts) == 2:
-                            j = f"{parts[0]} {alias} ON {parts[1]}"
-
                 join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
 
-        # ✅ IMPORTANT: RETURN MUST BE HERE
         return ",\n".join(select_lines), join_clause
 
     def generate(self) -> str:
@@ -86,11 +70,9 @@ class DatabricksNotebookGenerator:
 
         bronze_table = self.main_table
         bronze_short = bronze_table.split(".")[-1]
-        source_db = self.sttm.get("source_db", "not provided")
 
         select_sql, join_clause = self.build_transformation_sql()
 
-        # ✅ FROM CLAUSE
         from_clause = f"{bronze_table} S"
         if join_clause:
             from_clause = f"{bronze_table} S\n{join_clause}"
@@ -103,7 +85,7 @@ class DatabricksNotebookGenerator:
 # MAGIC ### Source and Target Info
 # MAGIC | Source DB | Source Table | Target DB | Target Table |
 # MAGIC |-----------|--------------|-----------|--------------|
-# MAGIC | {source_db} | {bronze_short} | {database} | {table} |
+# MAGIC | not provided | {bronze_short} | {database} | {table} |
 """
 
         read_section = f"""
