@@ -59,8 +59,18 @@ class STTMExcelParser:
         for i in range(len(df)):
             row = df.iloc[i].astype(str).str.strip().tolist()
             if "Common Join Logic:" in row:
-                common_join = df.iloc[i + 1].astype(str).str.strip().tolist()[0]
-                break
+              join_lines = []
+
+              for j in range(i + 1, len(df)):
+                  next_row = df.iloc[j].astype(str).str.strip().tolist()
+
+                  # ✅ stop when empty row comes
+                  if all(cell == "" or cell == "nan" for cell in next_row):
+                     break
+
+                  join_lines.append(" ".join(next_row))
+
+              common_join = "\n".join(join_lines)
 
         # ✅ 3️⃣ Parse column rows
         for i in range(header_row_idx + 1, len(df)):
