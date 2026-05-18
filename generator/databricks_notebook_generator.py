@@ -24,12 +24,13 @@ class DatabricksNotebookGenerator:
         for col in self.sttm["all_columns"]:
             name = col["name"]
             transform = col.get("transform_sql")
-            join = col.get("join_sql")   # ✅ JOIN SOURCE
+            join = col.get("join_sql")
 
+            # ✅ HANDLE TRANSFORM
             if transform:
                 t = transform.strip().rstrip(",")
                 t = re.sub(r"\s+", " ", t)
-                t = t.replace("<>", " <> ")
+                t = t.replace("&lt;&gt;", " <> ")
 
                 if "CASE" in t:
                     t = (
@@ -55,29 +56,29 @@ class DatabricksNotebookGenerator:
             else:
                 select_lines.append(f"        {name}")
 
-            # ✅ ✅ WORKING JOIN LOGIC (THIS IS THE FIX)
+            # ✅ ✅ JOIN LOGIC (FINAL FIX)
             if join and str(join).lower() != "none" and not join_clause:
                 j = re.sub(r"\s+", " ", join.strip())
 
+                # normalize INNER JOIN
                 if j.startswith("INNER") and not j.startswith("INNER JOIN"):
                     j = j.replace("INNER", "INNER JOIN", 1)
 
-                
+                # ✅ AUTO-FIX ALIAS (GENERIC, NO HARDCODE)
                 alias_match = re.search(r"\b(S\d+)\.", j)
 
                 if alias_match:
                     alias = alias_match.group(1)
 
-                    # add alias only if not already present
                     if f" {alias}" not in j:
-                         parts = j.split(" ON ")
-                         if len(parts) == 2:
-                             j = f"{parts[0]} {alias} ON {parts[1]}"
+                        parts = j.split(" ON ")
+                        if len(parts) == 2:
+                            j = f"{parts[0]} {alias} ON {parts[1]}"
 
                 join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
-                
-     return ",\n".join(select_lines), join_clause
 
+        # ✅ IMPORTANT: RETURN MUST BE HERE
+        return ",\n".join(select_lines), join_clause
 
     def generate(self) -> str:
         database = self.sttm["target"]["database"]
@@ -89,7 +90,7 @@ class DatabricksNotebookGenerator:
 
         select_sql, join_clause = self.build_transformation_sql()
 
-        # ✅ FROM CLAUSE (SAME LOGIC, CLEAN)
+        # ✅ FROM CLAUSE
         from_clause = f"{bronze_table} S"
         if join_clause:
             from_clause = f"{bronze_table} S\n{join_clause}"
@@ -146,7 +147,7 @@ gold_final_df.write \\
     .mode("append") \\
     .saveAsTable("{database}.{table}")
 
-print("Load completed for {database}.{table}")
+print("✅ Load completed for {database}.{table}")
 """
 
         return header + read_section + transform + final_select + load
