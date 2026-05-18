@@ -7,7 +7,6 @@ class STTMExcelParser:
     """
 
     def __init__(self, file_path: str, sheet_name: str):
-        # ✅ No hardcoded sheet name
         self.file_path = file_path
         self.sheet_name = sheet_name
 
@@ -29,10 +28,10 @@ class STTMExcelParser:
         target_table = None
         columns = []
 
-        # ✅ Table‑level Common Join Logic
+        # ✅ Table-level Common Join Logic
         common_join = None
 
-        # ✅ 1️⃣ Find header row and column indexes
+        # ✅ 1️⃣ Find header row
         for i in range(len(df)):
             row = df.iloc[i].astype(str).str.strip().tolist()
 
@@ -55,29 +54,38 @@ class STTMExcelParser:
         if header_row_idx is None:
             raise ValueError("Header row not found")
 
-        # ✅ 2️⃣ Extract Common Join Logic (table level)
+        # ✅ 2️⃣ Extract Common Join Logic (FIXED VERSION)
         for i in range(len(df)):
             row = df.iloc[i].astype(str).str.strip().tolist()
+
             if "Common Join Logic:" in row:
-              join_lines = []
+                join_lines = []
 
-              for j in range(i + 1, len(df)):
-                  next_row = df.iloc[j].astype(str).str.strip().tolist()
+                for j in range(i + 1, len(df)):
+                    next_row = df.iloc[j]
 
-                  # ✅ stop when empty row comes
-                  if all(cell == "" or cell == "nan" for cell in next_row):
-                     break
+                    # ✅ SAFELY get only valid values (preserves alias S1)
+                    values = [
+                        str(cell).strip()
+                        for cell in next_row
+                        if not pd.isna(cell) and str(cell).strip()
+                    ]
 
-                  join_lines.append(" ".join(next_row))
+                    # ✅ stop when row is empty
+                    if not values:
+                        break
 
-              common_join = "\n".join(join_lines)
+                    join_lines.append(" ".join(values))
+
+                common_join = "\n".join(join_lines)
+                break  # ✅ stop after first occurrence
 
         # ✅ 3️⃣ Parse column rows
         for i in range(header_row_idx + 1, len(df)):
             row = df.iloc[i]
             row_values = row.astype(str).str.strip().tolist()
 
-            # ✅ Detect target DB / table safely
+            # ✅ Detect target DB / table
             for cell in row_values:
                 if isinstance(cell, str):
                     if cell.startswith("mdm_"):
