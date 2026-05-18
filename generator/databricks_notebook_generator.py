@@ -75,6 +75,8 @@ class DatabricksNotebookGenerator:
                              j = f"{parts[0]} {alias} ON {parts[1]}"
 
                 join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
+                
+     return ",\n".join(select_lines), join_clause
 
 
     def generate(self) -> str:
