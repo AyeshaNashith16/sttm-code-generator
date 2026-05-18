@@ -62,9 +62,20 @@ class DatabricksNotebookGenerator:
                 if j.startswith("INNER") and not j.startswith("INNER JOIN"):
                     j = j.replace("INNER", "INNER JOIN", 1)
 
+                
+                alias_match = re.search(r"\b(S\d+)\.", j)
+
+                if alias_match:
+                    alias = alias_match.group(1)
+
+                    # add alias only if not already present
+                    if f" {alias}" not in j:
+                         parts = j.split(" ON ")
+                         if len(parts) == 2:
+                             j = f"{parts[0]} {alias} ON {parts[1]}"
+
                 join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
 
-        return ",\n".join(select_lines), join_clause
 
     def generate(self) -> str:
         database = self.sttm["target"]["database"]
