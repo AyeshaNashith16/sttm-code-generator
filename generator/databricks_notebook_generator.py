@@ -19,23 +19,24 @@ class DatabricksNotebookGenerator:
         select_lines = []
         join_clause = ""
 
-        # ✅ correct loop
+        # ✅ Main loop
         for col in self.sttm["all_columns"]:
             name = col["name"]
             transform = col.get("transform_sql")
             join = col.get("join_sql")
 
+            # ✅ Transform logic
             if transform:
                 t = transform.strip().rstrip(",")
                 t = re.sub(r"\s+", " ", t)
-                t = t.replace("&lt;&gt;", " <> ")
+                t = t.replace("&amp;lt;&amp;gt;", " <> ")
 
                 if "CASE" in t:
                     t = (
                         t.replace(" CASE", "\n        CASE")
-                         .replace(" WHEN", "\n            WHEN")
-                         .replace(" ELSE", "\n            ELSE")
-                         .replace(" END", "\n        END")
+                        .replace(" WHEN", "\n            WHEN")
+                        .replace(" ELSE", "\n            ELSE")
+                        .replace(" END", "\n        END")
                     )
                     select_lines.append(t)
 
@@ -50,37 +51,37 @@ class DatabricksNotebookGenerator:
 
                 else:
                     select_lines.append(f"        {t} AS {name}")
+
             else:
                 select_lines.append(f"        {name}")
 
-            # ✅ ✅ JOIN LOGIC (FINAL FIX WITH ALIAS)
+            # ✅ ✅ JOIN LOGIC
             if join and str(join).lower() != "none" and not join_clause:
                 j = re.sub(r"\s+", " ", join.strip())
 
                 if j.startswith("INNER") and not j.startswith("INNER JOIN"):
-                      j = j.replace("INNER", "INNER JOIN", 1)
+                    j = j.replace("INNER", "INNER JOIN", 1)
 
-            # ✅ ✅ FIX: ALWAYS extract alias from ON section
-            on_part = ""
-            if " ON " in j:
-                parts = j.split(" ON ")
-                table_part = parts[0]
-                on_part = parts[1]
-             else:
+                on_part = ""
                 table_part = j
+                alias = ""
 
-            # ✅ find alias from ON clause (S1, S2…)
-            alias_match = re.search(r"\b(S\d+)\.", on_part)
+                if " ON " in j:
+                    parts = j.split(" ON ")
+                    table_part = parts[0]
+                    on_part = parts[1]
 
-            if alias_match:
-               alias = alias_match.group(1)
+                # ✅ Extract alias (S1, S2…)
+                alias_match = re.search(r"\b(S\d+)\.", on_part)
+                if alias_match:
+                    alias = alias_match.group(1)
 
-            if f" {alias}" not in table_part:
-                j = f"{table_part} {alias} ON {on_part}"
+                # ✅ Add alias if missing
+                if alias and f" {alias}" not in table_part:
+                    j = f"{table_part} {alias} ON {on_part}"
 
-            # ✅ formatting
-            join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
-
+                # ✅ Format JOIN nicely
+                join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
 
         return ",\n".join(select_lines), join_clause
 
@@ -153,4 +154,3 @@ print("✅ Load completed for {database}.{table}")
 """
 
         return header + read_section + transform + final_select + load
-
