@@ -144,4 +144,4 @@ print("✅ Load completed for {database}.{table}")
 """
 
         return header + read_section + transform + final_select + load
-``
+
