@@ -91,7 +91,7 @@ class DatabricksNotebookGenerator:
 
         bronze_table = self.main_table
         bronze_short = bronze_table.split(".")[-1]
-        source_db = bronze_table.split(".")[-1] if "." in bronze_table else "unknown"
+        source_db = bronze_table
 
         select_sql, join_clause = self.build_transformation_sql()
 
