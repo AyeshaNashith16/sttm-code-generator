@@ -8,6 +8,8 @@ class DatabricksNotebookGenerator:
 
     def __init__(self, sttm_output: dict):
         self.sttm = sttm_output
+        self.bronze_schema = sttm_output.get("bronze_schema")
+        self.bronze_table_name = sttm_output.get("bronze_table_name")
 
         self.source_tables = sttm_output.get("source_tables", [])
         if not self.source_tables:
@@ -90,9 +92,9 @@ class DatabricksNotebookGenerator:
         table = self.sttm["target"]["table"]
 
         bronze_table = self.main_table
-        bronze_short = bronze_table.split(".")[-1]
-        source_db = bronze_schema
-        
+        # bronze_short = bronze_table.split(".")[-1]
+        source_db = self.bronze_schema
+        source_table = self.bronze_table_name
 
         select_sql, join_clause = self.build_transformation_sql()
 
@@ -108,7 +110,7 @@ class DatabricksNotebookGenerator:
 # MAGIC ### Source and Target Info
 # MAGIC | Source DB | Source Table | Target DB | Target Table |
 # MAGIC |-----------|--------------|-----------|--------------|
-# MAGIC | {source_db} | {bronze_short} | {database} | {table} |
+# MAGIC | {source_db} | {source_table} | {database} | {table} |
 """
 
         read_section = f"""
