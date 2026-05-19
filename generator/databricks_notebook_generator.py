@@ -8,8 +8,6 @@ class DatabricksNotebookGenerator:
 
     def __init__(self, sttm_output: dict):
         self.sttm = sttm_output
-        self.bronze_schema = sttm_output.get("bronze_schema")
-        self.bronze_table_name = sttm_output.get("bronze_table_name")
 
         self.source_tables = sttm_output.get("source_tables", [])
         if not self.source_tables:
@@ -21,7 +19,6 @@ class DatabricksNotebookGenerator:
         select_lines = []
         join_clause = ""
 
-        # ✅ Main loop
         for col in self.sttm["all_columns"]:
             name = col["name"]
             transform = col.get("transform_sql")
@@ -31,7 +28,7 @@ class DatabricksNotebookGenerator:
             if transform:
                 t = transform.strip().rstrip(",")
                 t = re.sub(r"\s+", " ", t)
-                t = t.replace("&amp;lt;&amp;gt;", " <> ")
+                t = t.replace("&amp;amp;lt;&amp;amp;gt;", " <> ")
 
                 if "CASE" in t:
                     t = (
@@ -40,7 +37,7 @@ class DatabricksNotebookGenerator:
                         .replace(" ELSE", "\n            ELSE")
                         .replace(" END", "\n        END")
                     )
-                    select_lines.append(t)
+                    select_lines.append(f"        {t} AS {name}")
 
                 elif t.lower() == "direct":
                     select_lines.append(f"        {name}")
@@ -57,15 +54,15 @@ class DatabricksNotebookGenerator:
             else:
                 select_lines.append(f"        {name}")
 
-            # ✅ ✅ JOIN LOGIC
+            # ✅ JOIN LOGIC
             if join and str(join).lower() != "none" and not join_clause:
                 j = re.sub(r"\s+", " ", join.strip())
 
                 if j.startswith("INNER") and not j.startswith("INNER JOIN"):
                     j = j.replace("INNER", "INNER JOIN", 1)
 
-                on_part = ""
                 table_part = j
+                on_part = ""
                 alias = ""
 
                 if " ON " in j:
@@ -73,16 +70,13 @@ class DatabricksNotebookGenerator:
                     table_part = parts[0]
                     on_part = parts[1]
 
-                # ✅ Extract alias (S1, S2…)
                 alias_match = re.search(r"\b(S\d+)\.", on_part)
                 if alias_match:
                     alias = alias_match.group(1)
 
-                # ✅ Add alias if missing
                 if alias and f" {alias}" not in table_part:
                     j = f"{table_part} {alias} ON {on_part}"
 
-                # ✅ Format JOIN nicely
                 join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
 
         return ",\n".join(select_lines), join_clause
@@ -92,9 +86,19 @@ class DatabricksNotebookGenerator:
         table = self.sttm["target"]["table"]
 
         bronze_table = self.main_table
-        # bronze_short = bronze_table.split(".")[-1]
-        source_db = self.bronze_schema
-        source_table = self.bronze_table_name
+
+        # ✅ ✅ FIXED SOURCE DB + TABLE EXTRACTION
+        parts = bronze_table.split(".")
+
+        if len(parts) >= 3:
+            source_db = f"{parts[0]}.{parts[1]}"
+            source_table = parts[2]
+        elif len(parts) == 2:
+            source_db = parts[0]
+            source_table = parts[1]
+        else:
+            source_db = "not provided"
+            source_table = bronze_table
 
         select_sql, join_clause = self.build_transformation_sql()
 
