@@ -58,20 +58,29 @@ class DatabricksNotebookGenerator:
                 j = re.sub(r"\s+", " ", join.strip())
 
                 if j.startswith("INNER") and not j.startswith("INNER JOIN"):
-                    j = j.replace("INNER", "INNER JOIN", 1)
+                      j = j.replace("INNER", "INNER JOIN", 1)
 
-                # ✅ auto add alias (S1 etc.)
-                alias_match = re.search(r"\b(S\d+)\.", j)
+            # ✅ ✅ FIX: ALWAYS extract alias from ON section
+            on_part = ""
+            if " ON " in j:
+                parts = j.split(" ON ")
+                table_part = parts[0]
+                on_part = parts[1]
+             else:
+                table_part = j
 
-                if alias_match:
-                    alias = alias_match.group(1)
+            # ✅ find alias from ON clause (S1, S2…)
+            alias_match = re.search(r"\b(S\d+)\.", on_part)
 
-                    if f" {alias}" not in j:
-                        parts = j.split(" ON ")
-                        if len(parts) == 2:
-                            j = f"{parts[0]} {alias} ON {parts[1]}"
+            if alias_match:
+               alias = alias_match.group(1)
 
-                join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
+            if f" {alias}" not in table_part:
+                j = f"{table_part} {alias} ON {on_part}"
+
+            # ✅ formatting
+            join_clause = j.replace(" ON ", "\n    ON ").replace(" AND ", "\n    AND ")
+
 
         return ",\n".join(select_lines), join_clause
 
