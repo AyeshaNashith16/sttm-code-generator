@@ -91,6 +91,7 @@ class DatabricksNotebookGenerator:
 
         bronze_table = self.main_table
         bronze_short = bronze_table.split(".")[-1]
+        source_db = bronze_table.split(".")[0] if "." in bronze_table else "unknown"
 
         select_sql, join_clause = self.build_transformation_sql()
 
@@ -106,7 +107,7 @@ class DatabricksNotebookGenerator:
 # MAGIC ### Source and Target Info
 # MAGIC | Source DB | Source Table | Target DB | Target Table |
 # MAGIC |-----------|--------------|-----------|--------------|
-# MAGIC | not provided | {bronze_short} | {database} | {table} |
+# MAGIC | {source_db} | {bronze_short} | {database} | {table} |
 """
 
         read_section = f"""
